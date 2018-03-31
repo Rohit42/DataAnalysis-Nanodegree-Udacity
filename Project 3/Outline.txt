@@ -1,0 +1,30 @@
+Univariate Analysis:
+--
+Number of Female and Male canidates
+Average of Female and Male donation
+Average of Republic and Democrat Donation
+Average of City and Rural Donation
+Contribution Price histogram X
+Contribution Date histogram X
+Contribution Employer histogram
+Contribution Occupation histogram
+--
+Bivariate Analysis:
+--
+Average contribution by time
+Average contribution by term
+Contribution amount by time/term
+Average contribution by occupation
+Average contribution by gender
+Average contribution by party
+Contribution by City (City population)
+Gender by City Population
+--
+Multivariate Analysis:
+--
+Contribution by City (City population) with Party Colors
+Contribution over time by cost
+Contribution over time by cost for each term
+Contribution by over time by City population.
+
+--

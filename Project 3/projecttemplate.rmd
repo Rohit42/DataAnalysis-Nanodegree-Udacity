@@ -1,0 +1,845 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+Presidential Campaign Analysis in Texas by Rohit MIttapalli
+========================================================  
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using in your analysis in this code
+# chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk. This
+# prevents the code from displaying in the knitted HTML output. You should set
+# echo=FALSE for all code chunks in your file, unless it makes sense for your
+# report to show the code that generated a particular plot.
+
+# The other parameters for "message" and "warning" should also be set to FALSE
+# for other code chunks once you have verified that each plot comes out as you
+# want it to. This will clean up the flow of your report.
+
+library(ggplot2)
+library(knitr)
+library(dplyr)
+library(gridExtra)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Load the Data
+elec_db <- read.csv('New Dataset.csv',header = TRUE)
+```
+
+The loaded dataset represents financial contributions to presidential campaigns
+in Texas. The dataset contains the amount, date, election term of each
+contribution, the name of the nominee contributed to, and the employer, name,
+location, occupation of the contributor.
+
+Using external data from the census.gov, population data of cities were added.
+The gender and political leaning for each candidate was also added. This was
+manually collected and joined using python scripts.
+
+# Univariate Plots Section
+
+To begin, We will study the typical donated amount.  
+
+```{r echo=FALSE, warning=FALSE,Univariate_Plots , message=FALSE}
+p1 <- ggplot(aes(x = contb_receipt_amt),data = elec_db) +
+  geom_histogram(binwidth = 5) +
+  scale_x_continuous(limits = 
+                       quantile(elec_db$contb_receipt_amt,probs=c(.05, .95))) +
+  ggtitle("Distribution of Contribution",subtitle = "0.05-.95% : Width = 5")
+
+p2 <- ggplot(aes(x = contb_receipt_amt),data = elec_db) +
+  geom_histogram(binwidth = 25) +
+  scale_x_continuous(limits = 
+                       quantile(elec_db$contb_receipt_amt,probs=c(.05, .95))) +
+  ggtitle("Distribution of Contribution",subtitle = "0.05-.95% : Width = 25")
+
+p3 <- ggplot(aes(x = contb_receipt_amt),data = elec_db) +
+  geom_histogram(binwidth = 1) +
+  scale_x_continuous(limits = c(0,100)) +
+  ggtitle("Distribution of Contribution",subtitle = "0-100$ Width = 1")
+
+grid.arrange(p1,p2,p3)
+
+```
+
+We will also include a summary of across contribution amount
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(elec_db$contb_receipt_amt)
+```
+
+
+We see primarily that donations are made at incremental values: 25, 50, 100, 200,
+250, and 300. The first two plots use the middle 95% of the data to remove
+outlier and the last plot studies points of over plotting in the first two.
+
+We will now look at the amount of contributions over time.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+elec_db$contrb_dates <- as.Date(elec_db$contb_receipt_dt,
+                                "%d-%b-%y",origin="01-Jan-1960")
+beg <- as.Date("2016-01-01")
+end <- as.Date("2017-01-01")
+
+p1 <- ggplot(aes(x=contrb_dates),data = elec_db) +
+  geom_histogram(binwidth = 5) +
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month",
+               date_labels = "%b-%y") +
+  ggtitle("Distribution of Contribution Dates",subtitle = "Width = 5 days")
+
+p2 <- ggplot(aes(x=contrb_dates),data = elec_db) +
+  geom_histogram(binwidth = 15) +
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month", 
+               date_labels = "%b-%y") +
+  ggtitle("Distribution of Contribution Dates",subtitle = "Width = 15 days")
+
+p3 <- ggplot(aes(x=contrb_dates),data = elec_db) +
+  geom_histogram(binwidth = 30) +
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month",
+               date_labels = "%b-%y") +
+  ggtitle("Distribution of Contribution Dates",subtitle = "width = 30 days")
+
+grid.arrange(p1,p2,p3)
+
+```
+
+
+We can see the number of contributions increasing over time and fluctuating
+periodically over time. There seems to be peaks around March, July, and
+November.
+
+We will now look at a histogram of contribution city populations. To properly
+see city sizes the x-axis has been scaled by the sqrt function.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+ggplot(aes(x=Population),data = subset(elec_db,!is.na(Population))) +
+  geom_histogram(binwidth = 50) +
+  scale_x_sqrt() +
+  ggtitle("Distribution of Contribution Population",
+          subtitle = "width = 30 people")
+  
+
+```
+
+We will also include a summary of across city population.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+summary(elec_db$Population)
+```
+
+There seems to be two types of cities those under 500 thousand residents and
+those above. We will categorize cities greater than 500,000 as large cities and
+those under as small.
+
+We will now look into the proportion of big and small cities. We have
+logarithmically scaled the y-axis.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+df <- data.frame(Size=c("Small City", "Big City"),
+                Count=c(1026,11))
+
+ggplot(data=df, aes(x=Size, y=Count)) +
+  geom_bar(stat="identity") +
+  scale_y_log10()
+```
+
+We see there are only 11 big cities and about a 1000 small ones. We will now
+study the total number of contributions by large and small cities.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+df <- data.frame(Size=c("Small City", "Big City"),
+                Count=c(sum(elec_db$Population < 500000,na.rm = TRUE), 
+                        sum(elec_db$Population > 500000,na.rm = TRUE)))
+
+df2 <- data.frame(Size=c("Small City", "Big City"),
+                Count=c(sum(elec_db$Population < 500000,na.rm = TRUE)/1026, 
+                        sum(elec_db$Population > 500000,na.rm = TRUE)/11))
+
+p1 <- ggplot(data=df, aes(x=Size, y=Count)) +
+  geom_bar(stat="identity") +
+  ggtitle("Number of Contributions for Big and Small City",subtitle = "Raw")
+p2 <- ggplot(data=df2, aes(x=Size, y=Count)) +
+  geom_bar(stat="identity") +
+    ggtitle("Number of Contributions for Big and Small City", 
+            subtitle = "Normalized") 
+    
+grid.arrange(p1,p2)
+
+```
+
+Surprisingly although there are 100 times less big cities than small cities the
+number of contributions are in the same magnitude.
+
+We will now look into the candidates. We will start by examining the gender of
+the candidates. We will take a look at the number of female and male candidates.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+df <- data.frame(dose=c("Male", "Female"),
+                len=c(23, 3))
+ggplot(data=df, aes(x=dose, y=len)) +
+  geom_bar(stat="identity")
+```
+
+There are significantly fewer female candidates than male candidates.
+
+We will now look at the political leaning of each candidate.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+df <- data.frame(Party=c("Republican","Democrat","Libertarian","Green"),
+                Count=c(19,5,1,1))
+ggplot(data=df, aes(x=Party, y=Count)) +
+  geom_bar(stat="identity")
+```
+
+We see that there are significantly more Republican candidates than Democrat
+candidates and only a single Green and Libertarian candidate.
+
+We will now see the number of contributions for each gender.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+df <- data.frame(Gender=c("Female","Male"),
+                Count=c(sum(elec_db$Gender == "F"),sum(elec_db$Gender == "M")))
+
+df2 <- data.frame(Gender=c("Female","Male"),
+                Count=c(sum(elec_db$Gender == "F")/3,
+                        sum(elec_db$Gender == "M")/23))
+
+p1 <- ggplot(data=df, aes(x=Gender, y=Count)) +
+  geom_bar(stat="identity") +
+  ggtitle("Number of Contributions by Gender",subtitle = "Raw")
+
+
+p2 <- ggplot(data=df2, aes(x=Gender, y=Count)) +
+  geom_bar(stat="identity") +
+    ggtitle("Number of Contributions by Genders",
+            subtitle = "Normalized by number of candidates")
+
+
+grid.arrange(p1,p2)
+```
+
+We see that despite there are significantly fewer female candidates, female
+candidates receive about two-thirds the number of contributions as male
+candidates.
+
+We will now look at the number of contributions for each party.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+df <- data.frame(Party=c("Republican","Democrat","Libertarian","Green"),
+                Count=c(sum(elec_db$Party == "Republican"),
+                        sum(elec_db$Party == "Democrat"),
+                        sum(elec_db$Party == "Libertarian"),
+                        sum(elec_db$Party == "Green")))
+
+df2 <- data.frame(Party=c("Republican","Democrat","Libertarian","Green"),
+                Count=c(sum(elec_db$Party == "Republican")/19,
+                        sum(elec_db$Party == "Democrat")/5,
+                        sum(elec_db$Party == "Libertarian"),
+                        sum(elec_db$Party == "Green")))
+
+p1 <- ggplot(data=df, aes(x=Party, y=Count)) +
+  geom_bar(stat="identity") +
+  ggtitle("Number of Contributions by Party",subtitle = "Raw")
+
+
+p2 <- ggplot(data=df2, aes(x=Party, y=Count)) +
+  geom_bar(stat="identity") +
+    ggtitle("Number of Contributions by Party",
+            subtitle = "Normalized by number of candidates")
+
+
+grid.arrange(p1,p2)
+```
+
+We see that despite there being significantly fewer number of democratic
+candidates, democratic candidates received more contributions than all other
+parties. Green and Libertarian parties do not have a significant number of
+contributions. 
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+
+The dataset is structured as a series of events. Each event is a contribution
+to presidential candidates described by many variables. The dataset primarily
+ranges across 2016.
+
+### What is/are the main feature(s) of interest in your dataset?
+
+The main features in the dataset include gender, political leniency,
+contribution rate over time and city population. 
+
+We see that the number of female and democratics candidates are fewer than the 
+number of male and republican candidates. Despite there being significantly
+fewer candidates, female candidates make two-thirds of the number of contributions
+of male candidates. Similarly, there are fewer democratic candidates than
+republican candidates however democratic candidates received more contributions. 
+
+This idea is also expanded to big and small cities. Large cities (categorized by
+a population greater than 500,000 people) are 100 times fewer than small cities
+but have two thirds of contributions of small cities.
+
+In general, a minority still has a significant number of contributions.
+
+Other features is that the number of contributions seem to follow a cycle with
+peaks in March, July and November and lows in June and September.
+
+The number of donations are often made at incremental values with the majority
+sub 100.
+
+### What other features in the dataset do you think will help support your \
+
+investigation into your feature(s) of interest?
+
+I think if more data across different years were included, more political trends
+could be derived. It would also be interesting to see if the income of donators
+correlated with contribution.
+
+### Did you create any new variables from existing variables in the dataset?
+
+I created new variables in the sense that I normalized certain data. For example
+for the number of contribution of candidates per gender, I normalized them by
+the number of 3 candidates.
+
+I also added 3 columns of data including city population, candidate gender and
+political affiliation.
+
+I also converted the date column to be of datetime objects. 
+
+### Of the features you investigated, were there any unusual distributions? \
+
+The number of contributions over time has an unusual distribution with three
+large peaks. The population of cities also had an unusual distribution due to
+large cities like Houston and Dallas. To accommodate that, I set it to a square
+root scale. For the number of cities above and below 500,000, I scaled the y
+axis by log 10.
+
+# Bivariate Plots Section
+
+We will look at average, median, and total contribution by time. For this plot
+I had to extract the month and year from the data.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+elec_db$Month <- as.Date(cut(elec_db$contrb_dates,
+  breaks = "month"))
+
+month_elec_db_groups <- group_by(elec_db, Month)
+elec_db_groups <- summarise(month_elec_db_groups,
+                          elec_count_mean = mean(contb_receipt_amt),
+                          elec_count_median = median(contb_receipt_amt),
+                          elec_count_sum = sum(contb_receipt_amt),
+                          n = n())
+elec_db_groups <- arrange(elec_db_groups, Month)
+
+p1 <- ggplot(aes(x=Month , y = elec_count_mean), data = elec_db_groups) +
+  geom_line() +
+  ggtitle("Average Contribution over Time") +
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month",
+               date_labels = "%b-%y")
+
+
+p2 <- ggplot(aes(x=Month , y = elec_count_median), data = elec_db_groups) +
+  geom_line() +
+  ggtitle("Median Contribution over Time") +
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month", 
+               date_labels = "%b-%y")
+
+
+p3 <- ggplot(aes(x=Month , y = elec_count_sum), data = elec_db_groups) +
+  geom_line() +
+  ggtitle("Total Contribution over Time") +
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month", 
+               date_labels = "%b-%y")
+
+
+p4 <- ggplot(aes(x=Month , y = n), data = elec_db_groups) +
+  geom_line() +
+  ggtitle("Number of Contributions over Time") +
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month", 
+               date_labels = "%b-%y")
+
+
+
+grid.arrange(p1,p2,p3,p4)
+```
+
+We see that the average and median contribution over time seems to be relatively
+steady. However there seems to be low total contribution around April and July 
+and a peak near February and October. We can contribute that to a lower number of
+contributions which also peaks in February and October and lowers in April and 
+July.
+
+We will know look at average, median, and total contribution by term.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+term_elec_db_groups <- group_by(elec_db, election_tp)
+elec_db_term <- summarise(term_elec_db_groups,
+                          elec_count_mean = mean(contb_receipt_amt),
+                          elec_count_median = median(contb_receipt_amt),
+                          elec_count_sum = sum(contb_receipt_amt),
+                          n = n())
+
+p1 <- ggplot(aes(x=election_tp , y = elec_count_mean), data = elec_db_term) +
+  geom_bar(stat = "identity") +
+  ggtitle("Average Contribution over Time")
+
+p2 <- ggplot(aes(x=election_tp , y = elec_count_median), data = elec_db_term) +
+  geom_bar(stat = "identity") +
+  ggtitle("Median Contribution over Time") 
+
+p3 <- ggplot(aes(x=election_tp , y = elec_count_sum), data = elec_db_term) +
+  geom_bar(stat = "identity") +
+  ggtitle("Total Contribution over Time") 
+
+p4 <- ggplot(aes(x=election_tp , y = n), data = elec_db_term) +
+  geom_bar(stat = "identity") +
+  ggtitle("Number of Contributions over Time") 
+
+
+
+grid.arrange(p1,p2,p3,p4)
+
+```
+
+We first note that there is not significant data for most terms and the only
+terms we can study are O2016 and P2016. We see that O2016 has a significantly
+higher average and median contribution but less number of contributions which
+results in a total less contribution over time.
+
+We will now look at average contribution and contribution based on gender.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p1 <- ggplot(aes(x = contb_receipt_amt),data = elec_db) +
+  geom_histogram(binwidth = 10) +
+  facet_wrap(~elec_db$Gender)+
+  scale_x_continuous(limits = 
+                       quantile(elec_db$contb_receipt_amt,probs=c(.05, .95))) +
+  ggtitle("Distribution of Contribution by Gender",
+          subtitle = "0.05-.95% : Width = 10") 
+
+p2 <- ggplot(aes(x=Gender, y=contb_receipt_amt),data = elec_db) +
+  geom_boxplot() +
+    coord_cartesian(ylim = 
+                      quantile(elec_db$contb_receipt_amt,probs=c(.05, .95))) +
+    ggtitle("Distribution of Contribution by Gender",subtitle = "0.05-.95%")
+
+
+grid.arrange(p1,p2)
+
+```
+
+We see that female candidates typically receive more smaller donations than male
+candidates but receive less donations greater than 100$. Overall the average
+donation for female candidates is less than the average contribution from males
+although they are very close in range.
+
+We will now look at average contribution and contribution based on political
+party.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+p1 <- ggplot(aes(x = contb_receipt_amt),data = elec_db) +
+  geom_histogram(binwidth = 10) +
+  facet_wrap(~elec_db$Party)+
+  scale_x_continuous(limits = 
+                       quantile(elec_db$contb_receipt_amt,probs=c(.05, .95))) +
+  ggtitle("Distribution of Contribution by Party",
+          subtitle = "0.05-.95% : Width = 10") +
+  scale_y_sqrt()
+
+p2 <- ggplot(aes(x=Party, y=contb_receipt_amt),data = elec_db) +
+  geom_boxplot() +
+    coord_cartesian(ylim = 
+                      quantile(elec_db$contb_receipt_amt,probs=c(.05, .95))) +
+    ggtitle("Distribution of Contribution by Party",subtitle = "0.05-.95%")
+
+
+grid.arrange(p1,p2)
+
+```
+
+We see at first that green and libertarian contributions are limited in number
+and resultantly have a relatively small sample size to draw from. In general,
+democrat nominees have more donations less than 100$ than their republican
+counterparts whereas republican candidates have more donations above 100$.
+Overall the average donation for Democrats is less than all other parties.
+
+We will now look at city population by candidate's political party.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+
+ggplot(aes(x=Party, y=Population),data = elec_db) +
+  geom_boxplot() +
+    coord_cartesian(ylim = quantile(elec_db$Population,
+                                    probs=c(.05, .95),na.rm = TRUE)) +
+    ggtitle("Distribution of City Population by Party",subtitle = "0.05-.95%")
+
+
+
+```
+
+We see interestingly that average city population for democrats and green party
+donations is greater than 500,000 whereas republican and libertarian is
+significantly less. 
+
+We will now look at city population by gender.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+
+ggplot(aes(x=Gender, y=Population),data = elec_db) +
+  geom_boxplot() +
+    coord_cartesian(ylim = 
+                  quantile(elec_db$Population,probs=c(.05, .95),na.rm = TRUE)) +
+    ggtitle("Distribution of City Population by Gender",subtitle = "0.05-.95%")
+
+
+
+```
+
+We see that the average city population voting for female candidates is
+significantly higher than male candidates.
+
+We will now look at average contribution by city population.
+
+```{r echo=FALSE, warning=FALSE}
+
+ggplot(aes(x = Population, y = contb_receipt_amt),data = elec_db) +
+  geom_point(alpha = 0.01) +
+    scale_y_continuous(limits = 
+                        quantile(elec_db$contb_receipt_amt,probs=c(.05, .95))) +
+    ggtitle("Contribution Amount by City Population",subtitle = "0.05-.95%") +
+  geom_smooth()
+
+
+```
+
+We see that for the most part the average contribution is relatively  constant
+across city population. There does not seem to be a correlation between
+population and contribution amount.
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+
+We see that the average and median contribution by time is realtively constant
+however, there is a periodicity in total contributions which can be attributed
+to a fluctuating number of contributions.
+
+We cannot draw many conclusions about contribution by terms since there is not
+significant data about each term.
+
+We also see that female candidates receive a smaller average contribution than
+their male counterparts. We also note that contributions towards female
+candidates are typically from larger cities than their male candidates.
+
+This is also similar for political affiliation. There is not significant data
+to draw conclusions for the libertarian and green parties. The democratic party
+receives smaller average contributions than the republican party and typically
+draw from larger cities than the republican party.
+
+It is important to note that the parallel between gender and political party is
+likely influenced from the fact that leading democratic candidate was Hillary 
+Clinton: a female whereas the Republican candidates were primarily male. 
+
+We also saw that contribution by city population was relatively constant.
+
+### What was the strongest relationship you found?
+
+The three strongest relationships were between city population and political
+lenience, city population and gender, number of contributions and time.
+
+# Multivariate Plots Section
+
+We first look at contribution amount by city population with party colors.
+
+
+```{r echo=FALSE, warning=FALSE}
+ggplot(aes(x = contrb_dates, y = Population),data = elec_db) +
+  scale_y_sqrt() + 
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month",
+               date_labels = "%b-%y") +
+  geom_point(aes(color = Party),alpha = 0.01) + 
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+  scale_color_manual(values=c("#0826ad", "#2a7025", "#e2dd6f","#ad0707")) +
+    ggtitle("Average City Population over Time by Party") 
+```
+
+This plot showed a strong relationship between number of contributions and
+political affiliation. We see that there are bands of colors across all cities.
+We also note that larger cities while influenced by the bands are slightly
+more consistent.
+
+In the next plot, we look at contribution amount by time and political party.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+p1 <- ggplot(aes(x = contrb_dates, y = contb_receipt_amt),data = elec_db) +
+  scale_y_log10() + 
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month",
+               date_labels = "%b-%y") +
+  geom_point(aes(color = Party),alpha = 0.01) + 
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+  scale_color_manual(values=c("#0826ad", "#2a7025", "#e2dd6f","#ad0707")) +
+    ggtitle("Average Contribution over Time by Party")
+
+
+p2 <- ggplot(aes(x=contrb_dates , y = contb_receipt_amt), data = elec_db) +
+  geom_point(alpha = 0.01) +
+  ggtitle("Average Contribution over Time by Party") +
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month",
+               date_labels = "%b-%y") +
+  facet_wrap(~Party) +
+  scale_y_log10()+ guides(colour = guide_legend(override.aes = list(alpha = 1)))
+
+grid.arrange(p1,p2)
+
+```
+
+We see the bands being reciprocated across this plot as well. The main band of
+interesting is between May and June where Republican donation seemingly stopped.
+Another interesting feature is that after Aug 2016 republican donation for
+values under 100$ essentially stopped. For the most part democratic donation has
+been constant but after November they also stopped.
+
+We will now look at the same thing with gender.
+
+```{r echo=FALSE}
+ggplot(aes(x = contrb_dates, y = Population),data = elec_db) +
+  scale_y_sqrt() + 
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month",
+               date_labels = "%b-%y") +
+  geom_point(aes(color = Gender),alpha = 0.03) +
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+    scale_color_manual(values=c("#e845e5", "#1e8dc9"))
+
+```
+
+This plot seems to align with party lines (Female to Democrat and Male to
+Republican). However the bands of higher population seem to fall as susceptible
+to the bands unlike party plots.
+
+We will now look at contribution amount by time and gender.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+p1 <- ggplot(aes(x = contrb_dates, y = contb_receipt_amt),data = elec_db) +
+  scale_y_log10() + 
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month",
+               date_labels = "%b-%y") +
+  geom_point(aes(color = Gender),alpha = 0.01) + 
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+    scale_color_manual(values=c("#e29ce1", "#55e0e0"))
+
+p2 <- ggplot(aes(x=contrb_dates , y = contb_receipt_amt), data = elec_db) +
+  geom_point(alpha = 0.01) +
+  ggtitle("Average Contribution over Time") +
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month", 
+               date_labels = "%b-%y") +
+  facet_wrap(~Gender) +
+  scale_y_log10() + guides(colour =guide_legend(override.aes = list(alpha = 1)))
+
+grid.arrange(p1,p2)
+
+```
+
+Again, we see similar patterns to party lines. However, the gap in donations from
+May to June for Republican candidates is only prominent for donations above 100$.
+Female candidates received the same amount of donations relatively consistent 
+with a major drop after November.
+
+Similar to republican candidates, male candidates after November faced a serious
+drop in donations under a 100$.
+
+To explore these bands further we will look at number of contribution by time
+and by gender.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+ggplot(aes(x = contrb_dates),data = elec_db) +
+  geom_histogram() +
+  facet_wrap(~Party) +
+      scale_x_date(limits = c(beg,end),date_breaks = "2 month",
+                   date_labels = "%b-%y") +
+  ggtitle("Number of Contributions by Time and Party")
+
+```
+
+Here we see the source of these bands and the fluctuation on donations over time
+in the data. We see that there is a much more significant dip in the donations
+over time in June and September for the Republican party than in the Democratic
+side. However there is a peak in March and October, however the October peak
+for Democrats, is significantly more substantial than the Republicans.
+
+We will now look at contribution over time by city population.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+ggplot(aes(x = contrb_dates, y = contb_receipt_amt),data = elec_db) +
+  scale_y_sqrt() +
+    scale_x_date(limits = c(beg,end),date_breaks = "2 month",
+                 date_labels = "%b-%y") +
+  geom_point(aes(color = elec_db$Population)) +
+  scale_color_gradientn(colours = rainbow(5))+
+  ggtitle("Contributions Amount by Time and City Population")
+
+
+
+
+
+```
+
+The homogeneous mixture of colors shows us that despite population and time,
+contribution amount stays relatively constant.
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+
+The main relationships we observed were: 
+
+    Contribution Amount by City Population by Party
+    Contribution Amount by City Population by Gender
+    Contribution Amount by Time by Party
+    Contribution Amount by Time by Gender
+    Contribution Amount by Time by City Population
+
+### Were there any interesting or surprising interactions between features?
+
+The most interesting elements of these plots were clear bands of Republican and
+Democratic donations. We see that these parallel the number of donations over
+time by party. We see clear drops for both in June and September. However,
+the republican party faces a significantly bigger drop in contribution in these
+lows. There are peaks in donations in March and October; however the Democratic
+peak in October is much more substantial.
+
+Other interesting components included that after the month of August Republican
+donation under 100$ virtually stopped. 
+
+We also saw that there was not a clear correlation between contributed amount
+and city population or city population donation and time.
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+p1 <- ggplot(aes(x = contrb_dates, y = contb_receipt_amt),data = elec_db) +
+  ylab("Contribution Amount (USD)") +
+  xlab("Contribution Dates") +
+  scale_y_log10() + 
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month",
+               date_labels = "%b-%y") +
+  geom_point(aes(color = Party),alpha = 0.01) + 
+  guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+  scale_color_manual(values=c("#0826ad", "#2a7025", "#e2dd6f","#ad0707")) +
+    ggtitle("Average Contribution over Time by Party")
+
+
+p2 <- ggplot(aes(x=contrb_dates , y = contb_receipt_amt), data = elec_db) +
+  geom_point(alpha = 0.01) +
+  ylab("Contribution Amount (USD)") +
+  xlab("Contribution Dates") +
+  ggtitle("Average Contribution over Time by Party") +
+  scale_x_date(limits = c(beg,end),date_breaks = "2 month",
+               date_labels = "%b-%y") +
+  facet_wrap(~Party) +
+  scale_y_log10()+ guides(colour = guide_legend(override.aes = list(alpha = 1)))
+
+
+grid.arrange(p1,p2)
+
+```
+
+### Description One
+
+This plot is a plot of average contribution over time and by party. The most
+interesting part of this plot are bands of Democratic and Republican dominance.
+Especially between May and June 2016, there are very few Republican donations.
+Also after August 2016 there are essentially no republican donations under a 
+100$.
+
+This plot made me consider the number of contributions over time for different
+parties. This plot is shown below.
+
+### Plot Two
+
+```{r echo=FALSE, warning = FALSE}
+ggplot(aes(x = contrb_dates),data = elec_db) +
+  geom_histogram() +
+  facet_wrap(~Party) +
+      scale_x_date(limits = c(beg,end),date_breaks = "2 month",
+                   date_labels = "%b-%y") +
+  ggtitle("Number of Contributions by Time and Party")+
+    ylab("Number Of Contributions") + xlab("Contribution Date")
+```
+
+### Description Two
+
+There are a few interesting components to this plot. First of for both
+republican and democratic parties there are maximums in March, July and October
+and lows in June and September. This was also reflected in the total
+contribution over time. However interestingly, republican donations are far
+more affected by these lows. In June and September there are very few Republican
+donations at all. Also in November 
+
+### Plot Three
+
+```{r echo=FALSE, warning = FALSE}
+
+
+ggplot(aes(x=Party, y=Population),data = elec_db) +
+  geom_boxplot() +
+    coord_cartesian(ylim = 
+                  quantile(elec_db$Population,probs=c(.05, .95),na.rm = TRUE)) +
+    ggtitle("Distribution of City Population by Party",subtitle = "0.05-.95%")
+ 
+
+```
+
+### Description Three
+
+This last plot shows the distribution of city population by party. Most
+donations to democrats and green parties come from cities of big populations
+whereas republican donations often come from smaller cities. 
+
+------
+
+# Reflection
+
+The project studied political contributions in Texas. The insights showed that
+in many cases minorities (Female Candidates, Democratic Nominees, and Number of
+Large Cities) had a significant number and total contribution as their majority
+counterparts. Furthermore, the analysis gave insight to political lows and highs
+and major contributing elements of donations. Surprisingly, it showed an
+interesting correlation between city population and political lenience.
+
+Over time it was interesting how certain explorations led to further questions.
+For example seeing the bands in city population donations over time by party
+led me to question total number of contribution over time by party. This 
+exploration led to more questions and a better understanding.
+
+Before I began studying this data, I started with all the elements provided by
+the Federal Election Commission. I quickly learned that this data simply wasn't
+sufficient. I required more information about the candidate's affiliated party
+to say more about the nature of the donation. Moreover, I required data about
+city size to tell more about nature of the donator. Gather this external data
+and joining it with that provided resulted in a more holistic understanding of
+the data.
+
+In the future, I hope to gather more data across years to see if these trend 
+hold. Often throughout this exploration, political party and gender aligned.
+This is most likely due to the leading democratic candidate being Female. With
+data from more years, I suspect this correlation will not be as cut and dry.
+In comparison, libertarian and green party do not have much data. Collecting
+across a few years may provide the data to properly analyze the parties.
